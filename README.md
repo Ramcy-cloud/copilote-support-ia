@@ -41,7 +41,7 @@ L'application est composée de trois programmes qui se parlent :
 1. Le technicien saisit le sujet et la description dans l'interface.
 2. Le moteur cherche les **2 anciens tickets les plus proches** dans la base vectorielle.
 3. Il construit un **prompt** (le texte d'instructions destiné à une IA) qui contient : le rôle attendu (« assistant support SAP »), les 2 anciens tickets et leur solution, puis le nouveau problème.
-4. Ce prompt est prévu pour être envoyé à un **LLM** (*Large Language Model*, « grand modèle de langage ») : un programme d'IA capable de rédiger du texte, comme celui derrière ChatGPT. **Cette étape est désactivée** : le code renvoie à la place un texte d'exemple fixe, marqué `[SIMULATION LLM]`.
+4. Ce prompt est prévu pour être envoyé à un **LLM** (*Large Language Model*, « grand modèle de langage ») : un programme d'IA capable de rédiger du texte, comme celui derrière ChatGPT. Ici, c'est l'API **Mistral** qui est utilisée. **Sans clé API, l'étape est simulée** : le code renvoie un texte d'exemple fixe, marqué `[SIMULATION LLM]`.
 5. L'orchestrateur enregistre le ticket et la réponse dans une petite base de données locale, puis renvoie la réponse à l'interface.
 
 Cette méthode, qui consiste à **chercher** d'abord des informations utiles puis à les **donner** à l'IA pour qu'elle rédige sa réponse, s'appelle le **RAG** (*Retrieval-Augmented Generation*, « génération augmentée par la recherche »).
@@ -55,7 +55,7 @@ Cette méthode, qui consiste à **chercher** d'abord des informations utiles pui
 - Un **historique** des demandes enregistré dans une base de données locale (fichier `database.sqlite`).
 - Côté moteur, la réponse technique contient aussi le **prompt complet** construit avec les anciens tickets retrouvés (champ `prompt_utilise`) : c'est là qu'on peut vérifier que la recherche a trouvé les bons tickets.
 
-Pour obtenir de vraies réponses, il faudrait : remplacer les 4 tickets d'exemple par un véritable historique, et brancher un LLM (voir « Pour les développeurs »).
+Pour obtenir de vraies réponses, il faudrait : remplacer les 4 tickets d'exemple par un véritable historique, et renseigner une clé Mistral (voir « Pour les développeurs »).
 
 ---
 
@@ -81,7 +81,8 @@ Pour obtenir de vraies réponses, il faudrait : remplacer les 4 tickets d'exempl
   - `data_prep.py` : jeu de 4 tickets fictifs (`INC001` à `INC004`) défini dans le code, nettoyage du texte et création de la colonne `Contexte_Pour_Embedding` (`"sujet: ... | description: ..."`) ;
   - `build_vector_db.py` : indexation dans ChromaDB (collection `sap_tickets`, dossier `./chroma_db`) avec la fonction d'embedding par défaut de ChromaDB (modèle `all-MiniLM-L6-v2`, téléchargé au premier lancement) ; l'ID du ticket et la résolution sont stockés en métadonnées ;
   - `rag_pipeline.py` : recherche des 2 tickets les plus proches (`n_results=2`) et construction du prompt ;
-  - `main.py` : API FastAPI, route `POST /ask-copilot`. L'appel à OpenAI (`gpt-3.5-turbo`) est présent mais **commenté** ; la réponse renvoyée est une chaîne simulée.
+  - `main.py` : API FastAPI, route `POST /ask-copilot`. Appelle le LLM via `llm.py` ; la réponse est simulée si `MISTRAL_API_KEY` n'est pas défini.
+  - `llm.py` : appel HTTP à l'API Mistral (`mistral-small-latest` par défaut, `temperature=0.3`). Erreur Mistral → réponse `502` côté Python.
 
 ### Format de l'API Python
 
@@ -111,7 +112,7 @@ Documentation interactive : http://localhost:8000/docs
 | Interface | `React 19` + `Vite 8` + `axios` |
 | Orchestrateur | `NestJS 11` + `@nestjs/axios` + `TypeORM` + `sqlite3` |
 | Moteur IA | `FastAPI` + `Uvicorn` + `ChromaDB` + `pandas` |
-| LLM (prévu, désactivé) | API OpenAI |
+| LLM (optionnel) | API Mistral (via `httpx`) |
 | Tests | `pytest` + `httpx` (Python), `jest` (NestJS) |
 
 ### Prérequis
@@ -133,10 +134,10 @@ venv\Scripts\activate
 source venv/bin/activate
 
 pip install -r requirements.txt
-pip install pandas openai   # absents de requirements.txt mais importés par le code
+pip install pandas   # absent de requirements.txt mais importé par data_prep.py
 ```
 
-> `main.py` importe `openai` et `data_prep.py` importe `pandas` : sans ces deux paquets, le service ne démarre pas.
+> `data_prep.py` importe `pandas` : sans ce paquet, la préparation des données ne fonctionne pas.
 
 Générer la base vectorielle (une seule fois) :
 
@@ -192,7 +193,19 @@ Interface sur http://localhost:5173 : ouvrez cette adresse dans votre navigateur
 
 ### Brancher un vrai LLM
 
-Dans `ai-service-python/main.py`, le bloc d'appel à OpenAI est commenté. Il utilise l'ancienne syntaxe `openai.ChatCompletion.create`, qui ne fonctionne qu'avec `openai<1.0` ; avec une version récente du paquet, il faut l'adapter (`OpenAI().chat.completions.create`). Fournissez la clé via une variable d'environnement plutôt que dans le code.
+Le service appelle Mistral dès que `MISTRAL_API_KEY` est défini ; sinon il renvoie la réponse simulée.
+
+```bash
+cd ai-service-python
+cp .env.example .env   # puis renseigner MISTRAL_API_KEY dans .env
+```
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `MISTRAL_API_KEY` | (vide = simulation) | Clé API, à créer sur https://console.mistral.ai. Le fichier `.env` est ignoré par git. |
+| `MISTRAL_MODEL` | `mistral-small-latest` | Modèle Mistral utilisé. |
+
+Redémarrez `python main.py` après avoir modifié `.env`.
 
 ### Tests
 
@@ -202,7 +215,7 @@ Moteur IA (depuis `ai-service-python`, environnement virtuel activé, base vecto
 pytest test/test_main.py -v -s
 ```
 
-Deux tests : une requête valide renvoie `200`, une requête sans `description` renvoie `422`.
+Sept tests : requête valide (`200`), requête sans `description` (`422`), erreur LLM (`502`), et appel Mistral simulé (clé absente → simulation, en-tête et corps de la requête, erreurs HTTP). Aucun test n'appelle le vrai Mistral.
 
 Orchestrateur : `npm test` (fichiers `*.spec.ts` générés par NestJS ; voir les points à corriger, ils ne déclarent pas les dépendances nécessaires).
 
