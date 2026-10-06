@@ -2,6 +2,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import './App.css';
 
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+
 function App() {
   const [sujet, setSujet] = useState('');
   const [description, setDescription] = useState('');
@@ -15,7 +17,7 @@ function App() {
 
     try {
       // Appel vers ton orchestrateur NestJS
-      const res = await axios.post('http://localhost:3000/copilot/ask', {
+      const res = await axios.post(`${API_URL}/copilot/ask`, {
         sujet: sujet,
         description: description
       });
