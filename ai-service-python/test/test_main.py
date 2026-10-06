@@ -10,6 +10,14 @@ from main import app  # Maintenant, il trouvera main.py sans problème !
 # On crée un client de test
 client = TestClient(app)
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def sans_cle_mistral(monkeypatch):
+    """Les tests n'appellent jamais le vrai Mistral, même si un .env existe."""
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+
 def test_ask_copilot_valide():
     """Test vérifiant que l'API répond 200 OK avec des données correctes"""
     
@@ -43,3 +51,13 @@ def test_ask_copilot_donnees_manquantes():
     
     assert response.status_code == 422
     print("✅ Le test de rejet d'erreur (422) a réussi !")
+
+def test_erreur_llm_renvoie_502(monkeypatch):
+    import main
+
+    async def echec(prompt):
+        raise main.LLMError("Mistral a répondu 401")
+
+    monkeypatch.setattr(main, "generate_resolution", echec)
+    response = client.post("/ask-copilot", json={"sujet": "s", "description": "d"})
+    assert response.status_code == 502
