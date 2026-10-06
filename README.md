@@ -75,8 +75,8 @@ Pour obtenir de vraies réponses, il faudrait : remplacer les 4 tickets d'exempl
                                                table tickets_historique
 ```
 
-- **Frontend** (`1-frontend-react/src/App.jsx`) : formulaire sujet + description, appel `axios` à `http://localhost:3000/copilot/ask` (URL écrite en dur), affichage de `resolution_suggeree`.
-- **Orchestrateur** (`2-backend-nestjs`) : route `POST /copilot/ask`, appel HTTP à `http://localhost:8000/ask-copilot` (URL écrite en dur), puis sauvegarde (`sujet`, `description`, `resolution_ia`, `date_creation`) dans la table `tickets_historique` de `database.sqlite` via TypeORM (`synchronize: true`). CORS ouvert à toutes les origines. Port configurable avec la variable `PORT` (3000 par défaut).
+- **Frontend** (`1-frontend-react/src/App.jsx`) : formulaire sujet + description, appel `axios` à `${VITE_API_URL}/copilot/ask` (`http://localhost:3000` par défaut), affichage de `resolution_suggeree`.
+- **Orchestrateur** (`2-backend-nestjs`) : route `POST /copilot/ask`, appel HTTP à `AI_SERVICE_URL` (`http://localhost:8000/ask-copilot` par défaut), puis sauvegarde (`sujet`, `description`, `resolution_ia`, `date_creation`) dans la table `tickets_historique` de `database.sqlite` via TypeORM (`synchronize: true`). CORS restreint aux origines de `ALLOWED_ORIGINS` (méthode `POST`, en-tête `Content-Type`). Port configurable avec la variable `PORT` (3000 par défaut).
 - **Moteur IA** (`ai-service-python`) :
   - `data_prep.py` : jeu de 4 tickets fictifs (`INC001` à `INC004`) défini dans le code, nettoyage du texte et création de la colonne `Contexte_Pour_Embedding` (`"sujet: ... | description: ..."`) ;
   - `build_vector_db.py` : indexation dans ChromaDB (collection `sap_tickets`, dossier `./chroma_db`) avec la fonction d'embedding par défaut de ChromaDB (modèle `all-MiniLM-L6-v2`, téléchargé au premier lancement) ; l'ID du ticket et la résolution sont stockés en métadonnées ;
@@ -190,6 +190,17 @@ npm run dev
 ```
 
 Interface sur http://localhost:5173 : ouvrez cette adresse dans votre navigateur.
+
+### Variables d'environnement
+
+| Variable | Où | Défaut | Rôle |
+|---|---|---|---|
+| `ALLOWED_ORIGINS` | NestJS | `http://localhost:5173` | Origines autorisées par CORS, séparées par des virgules. Le joker `*` est ignoré. |
+| `AI_SERVICE_URL` | NestJS | `http://localhost:8000/ask-copilot` | URL complète du service Python (appel serveur à serveur, sans CORS). |
+| `PORT` | NestJS | `3000` | Port de l'orchestrateur. |
+| `VITE_API_URL` | React (Vite) | `http://localhost:3000` | Adresse de l'orchestrateur, lue au démarrage/build. |
+
+Sans aucune variable, le comportement en local est inchangé. Voir `2-backend-nestjs/.env.example` (à exporter dans le shell : NestJS ne charge pas ce fichier) et `1-frontend-react/.env.example` (à copier en `.env`, Vite le lit seul). Le service Python n'a pas de CORS : il n'est appelé que par NestJS.
 
 ### Brancher un vrai LLM
 

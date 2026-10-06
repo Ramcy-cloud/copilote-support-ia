@@ -1,9 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { buildCorsOptions } from './cors.config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors();   // Autoriser React à appeler l'API
+  // Seules les origines listées dans ALLOWED_ORIGINS peuvent appeler l'API depuis un navigateur
+  app.enableCors(buildCorsOptions());
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();
