@@ -14,7 +14,8 @@ export class CopilotService {
   ) {}
 
   async askAiCopilot(sujet: string, description: string) {
-    const pythonApiUrl = 'http://localhost:8000/ask-copilot';
+    const pythonApiUrl =
+      process.env.AI_SERVICE_URL ?? 'http://localhost:8000/ask-copilot';
 
     try {
       // 1. Appel vers l'IA en Python
