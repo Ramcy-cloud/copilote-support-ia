@@ -1,0 +1,43 @@
+# CD (livraison continue) : livre les artefacts de build APRÈS validation manuelle.
+#
+# Le projet n'a pas de Dockerfile : la livraison consiste à republier, en un paquet
+# « livraison-<sha> » conservé 90 jours, les artefacts produits par la CI verte :
+#   build-frontend (1-frontend-react/dist), build-orchestrateur (dist NestJS),
+#   build-moteur-ia (service Python + base vectorielle).
+#
+# Déclenchement : automatiquement quand le workflow « CI » se termine en succès
+# sur un push vers main. Le job utilise l'environnement GitHub « production »,
+# protégé par une validation (required reviewer : Ramcy-cloud). Il attend donc un clic :
+#   onglet Actions → exécution « CD » → « Review deployments » → cocher production → « Approve and deploy ».
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
+
+jobs:
+  livraison:
+    name: Livraison
+    # Uniquement après une CI verte déclenchée par un push sur main (jamais par une PR).
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    permissions:
+      contents: read
+      actions: read
+    uses: Ramcy-cloud/ci-templates/.github/workflows/artifact-delivery.yml@v1
+    with:
+      environment: production
+      pattern: build-*
+      run-id: ${{ github.event.workflow_run.id }}
+      sha: ${{ github.event.workflow_run.head_sha }}

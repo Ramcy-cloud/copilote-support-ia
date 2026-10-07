@@ -230,6 +230,19 @@ Sept tests : requête valide (`200`), requête sans `description` (`422`), erreu
 
 Orchestrateur : `npm test` (fichiers `*.spec.ts` générés par NestJS ; voir les points à corriger, ils ne déclarent pas les dépendances nécessaires).
 
+### CI/CD
+
+Les workflows s'appuient sur les modèles partagés de [`Ramcy-cloud/ci-templates`](https://github.com/Ramcy-cloud/ci-templates) (version `v1`).
+
+- **CI** (`.github/workflows/ci.yml`) — à chaque pull request et à chaque push sur `main` :
+  - interface React : lint (`eslint`) et build Vite ;
+  - orchestrateur NestJS : tests unitaires (`npm test`), tests e2e (`npm run test:e2e`) et build. Le lint ESLint/Prettier est lancé mais **non bloquant** pour l'instant : le code existant contient déjà des erreurs (avertissement visible dans le résumé de chaque exécution) ;
+  - moteur IA Python : tests `pytest` (sans clé Mistral, le service renvoie la réponse simulée).
+
+  Chaque partie produit un artefact de build (`build-frontend`, `build-orchestrateur`, `build-moteur-ia`).
+- **CD** (`.github/workflows/cd.yml`) — le projet n'a pas de Dockerfile : quand la CI est verte sur `main`, une livraison démarre puis **attend une validation manuelle** (environnement GitHub `production`). Pour livrer : onglet *Actions* → exécution *CD* → **Review deployments** → cocher `production` → **Approve and deploy**. Les artefacts sont alors republiés en un paquet `livraison-<sha>` conservé 90 jours (téléchargeable depuis la page de l'exécution).
+- Aucun secret n'est nécessaire en CI. `MISTRAL_API_KEY` ne sert qu'à l'exécution réelle du moteur IA.
+
 ### Structure du projet
 
 ```
