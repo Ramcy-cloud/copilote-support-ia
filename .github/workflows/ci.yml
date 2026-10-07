@@ -1,0 +1,64 @@
+# CI : vérifie chaque pull request et chaque push sur main.
+# Les étapes sont définies une seule fois dans Ramcy-cloud/ci-templates (workflows réutilisables).
+#
+# Le projet n'a pas de Dockerfile : la CI produit des artefacts de build (build-*),
+# que le CD (.github/workflows/cd.yml) livre après validation manuelle.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Interface React
+    uses: Ramcy-cloud/ci-templates/.github/workflows/node-ci.yml@v1
+    with:
+      working-directory: 1-frontend-react
+      node-version: "22"
+      lint-command: npm run lint
+      build-command: npm run build
+      artifact-name: build-frontend
+      artifact-path: 1-frontend-react/dist
+
+  orchestrateur:
+    name: Orchestrateur NestJS
+    uses: Ramcy-cloud/ci-templates/.github/workflows/node-ci.yml@v1
+    with:
+      working-directory: 2-backend-nestjs
+      node-version: "22"
+      # Lint SANS --fix (le script « npm run lint » modifie les fichiers).
+      # Non bloquant pour l'instant : le code existant contient déjà des erreurs ESLint/Prettier
+      # (voir l'avertissement dans le résumé de l'exécution). À corriger puis repasser à false.
+      lint-command: npx eslint "{src,apps,libs,test}/**/*.ts"
+      lint-allow-failure: true
+      test-command: npm test && npm run test:e2e
+      build-command: npm run build
+      artifact-name: build-orchestrateur
+      artifact-path: |
+        2-backend-nestjs/dist
+        2-backend-nestjs/package.json
+        2-backend-nestjs/package-lock.json
+
+  moteur-ia:
+    name: Moteur IA Python
+    uses: Ramcy-cloud/ci-templates/.github/workflows/python-ci.yml@v1
+    with:
+      working-directory: ai-service-python
+      python-version: "3.11"
+      # Sans MISTRAL_API_KEY, le service renvoie la réponse simulée : aucun secret requis.
+      test-command: pytest -v
+      artifact-name: build-moteur-ia
+      artifact-path: |
+        ai-service-python
+        !ai-service-python/**/__pycache__
+        !ai-service-python/**/.pytest_cache
+        !ai-service-python/test
