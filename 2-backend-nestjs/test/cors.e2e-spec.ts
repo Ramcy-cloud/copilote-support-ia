@@ -38,7 +38,7 @@ describe('CORS (e2e)', () => {
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
   });
 
-  it('refuse la préflight d\'une origine inconnue', async () => {
+  it("refuse la préflight d'une origine inconnue", async () => {
     const res = await request(app.getHttpServer())
       .options('/copilot/ask')
       .set('Origin', 'https://site-malveillant.example')
@@ -49,13 +49,15 @@ describe('CORS (e2e)', () => {
 
 describe('buildCorsOptions', () => {
   it("n'autorise que le frontend local par défaut", () => {
-    expect(buildCorsOptions(undefined).origin).toEqual(['http://localhost:5173']);
+    expect(buildCorsOptions(undefined).origin).toEqual([
+      'http://localhost:5173',
+    ]);
   });
 
   it('ignore le joker "*" et gère la liste séparée par des virgules', () => {
     expect(buildCorsOptions('*').origin).toEqual(['http://localhost:5173']);
-    expect(buildCorsOptions('https://a.example, https://b.example').origin).toEqual(
-      ['https://a.example', 'https://b.example'],
-    );
+    expect(
+      buildCorsOptions('https://a.example, https://b.example').origin,
+    ).toEqual(['https://a.example', 'https://b.example']);
   });
 });
