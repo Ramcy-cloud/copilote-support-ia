@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from rag_pipeline import build_rag_prompt
+from rag_pipeline import KnowledgeBaseUnavailable, build_rag_prompt
 from llm import LLMError, generate_resolution
 
 # Charge ai-service-python/.env (MISTRAL_API_KEY, MISTRAL_MODEL)
@@ -38,6 +38,11 @@ async def ask_copilot(ticket: TicketRequest):
             "prompt_utilise": prompt # Utile pour le debug
         }
 
+    except KnowledgeBaseUnavailable as e:
+        logger.error("Base de connaissances indisponible : %s", e)
+        raise HTTPException(
+            status_code=503, detail="Base de connaissances non initialisée"
+        )
     except LLMError as e:
         print(f"Erreur LLM : {e}")
         raise HTTPException(status_code=502, detail="Erreur du service LLM")

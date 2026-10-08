@@ -1,15 +1,53 @@
+import os
+from functools import lru_cache
+from pathlib import Path
+
 import chromadb
 
-# 1. Connexion à la base de données vectorielle existante
-client = chromadb.PersistentClient(path="./chroma_db")
-collection = client.get_collection(name="sap_tickets")
+from data_prep import build_embedding_context
+
+COLLECTION_NAME = "sap_tickets"
+# Par défaut : dossier chroma_db à côté de ce fichier (indépendant du dossier courant)
+DEFAULT_CHROMA_DB_PATH = Path(__file__).resolve().parent / "chroma_db"
+
+
+class KnowledgeBaseUnavailable(RuntimeError):
+    """La base vectorielle (dossier ou collection) n'existe pas encore."""
+
+
+def get_chroma_db_path():
+    """Chemin de la base ChromaDB : variable CHROMA_DB_PATH, sinon DEFAULT_CHROMA_DB_PATH."""
+    return Path(os.getenv("CHROMA_DB_PATH") or DEFAULT_CHROMA_DB_PATH)
+
+
+@lru_cache(maxsize=1)
+def get_collection():
+    """
+    Connexion paresseuse à la collection, ouverte au premier appel puis mise en cache.
+    Un échec n'est pas mis en cache : une fois la base construite, l'appel suivant réussit.
+    """
+    path = get_chroma_db_path()
+    # PersistentClient créerait un dossier vide : on vérifie d'abord qu'il existe.
+    if not path.is_dir():
+        raise KnowledgeBaseUnavailable(
+            f"Base vectorielle introuvable ({path}) : lancez « python build_vector_db.py »."
+        )
+    client = chromadb.PersistentClient(path=str(path))
+    try:
+        return client.get_collection(name=COLLECTION_NAME)
+    except Exception as exc:  # NotFoundError / ValueError selon la version de ChromaDB
+        raise KnowledgeBaseUnavailable(
+            f"Collection « {COLLECTION_NAME} » absente de {path} : "
+            "lancez « python build_vector_db.py »."
+        ) from exc
+
 
 def retrieve_similar_tickets(new_ticket_text, n_results=2):
     """
     Cherche les N tickets les plus similaires dans ChromaDB.
     ChromaDB s'occupe de vectoriser la requête "à la volée".
     """
-    results = collection.query(
+    results = get_collection().query(
         query_texts=[new_ticket_text],
         n_results=n_results
     )
@@ -19,8 +57,8 @@ def build_rag_prompt(new_ticket_subject, new_ticket_description):
     """
     Exécute le pipeline complet pour préparer la requête au LLM.
     """
-    # Formater la requête exactement de la même manière que lors du nettoyage initial
-    query_text = f"sujet: {new_ticket_subject.lower()} | description: {new_ticket_description.lower()}"
+    # Même prétraitement que les tickets indexés (data_prep.build_embedding_context)
+    query_text = build_embedding_context(new_ticket_subject, new_ticket_description)
     
     print(f"🔍 Recherche dans la base de connaissances pour : '{new_ticket_subject}'...\n")
     
