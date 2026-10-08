@@ -76,13 +76,13 @@ Pour obtenir de vraies réponses, il faudrait : remplacer les 4 tickets d'exempl
 ```
 
 - **Frontend** (`1-frontend-react/src/App.jsx`) : formulaire sujet + description, appel `axios` à `${VITE_API_URL}/copilot/ask` (`http://localhost:3000` par défaut), affichage de `resolution_suggeree`.
-- **Orchestrateur** (`2-backend-nestjs`) : route `POST /copilot/ask`, appel HTTP à `AI_SERVICE_URL` (`http://localhost:8000/ask-copilot` par défaut), puis sauvegarde (`sujet`, `description`, `resolution_ia`, `date_creation`) dans la table `tickets_historique` de `database.sqlite` via TypeORM (`synchronize: true`). CORS restreint aux origines de `ALLOWED_ORIGINS` (méthode `POST`, en-tête `Content-Type`). Port configurable avec la variable `PORT` (3000 par défaut).
+- **Orchestrateur** (`2-backend-nestjs`) : route `POST /copilot/ask`, appel HTTP à `AI_SERVICE_URL` (`http://localhost:8000/ask-copilot` par défaut), puis sauvegarde (`sujet`, `description`, `resolution_ia`, `date_creation`) dans la table `tickets_historique` de `database.sqlite` via TypeORM (synchronisation du schéma désactivée par défaut, activable en développement avec `DB_SYNCHRONIZE=true`). CORS restreint aux origines de `ALLOWED_ORIGINS` (méthode `POST`, en-tête `Content-Type`). Port configurable avec la variable `PORT` (3000 par défaut).
 - **Moteur IA** (`ai-service-python`) :
   - `data_prep.py` : jeu de 4 tickets fictifs (`INC001` à `INC004`) défini dans le code, nettoyage du texte et création de la colonne `Contexte_Pour_Embedding` (`"sujet: ... | description: ..."`) ;
   - `build_vector_db.py` : indexation dans ChromaDB (collection `sap_tickets`, dossier `./chroma_db`) avec la fonction d'embedding par défaut de ChromaDB (modèle `all-MiniLM-L6-v2`, téléchargé au premier lancement) ; l'ID du ticket et la résolution sont stockés en métadonnées ;
-  - `rag_pipeline.py` : recherche des 2 tickets les plus proches (`n_results=2`) et construction du prompt ;
+  - `rag_pipeline.py` : recherche des 2 tickets les plus proches (`n_results=2`) et construction du prompt. La connexion à ChromaDB est ouverte au premier appel (pas à l'import) et la requête est nettoyée par la même fonction que les tickets indexés (`data_prep.build_embedding_context`) ;
   - `main.py` : API FastAPI, route `POST /ask-copilot`. Appelle le LLM via `llm.py` ; la réponse est simulée si `MISTRAL_API_KEY` n'est pas défini.
-  - `llm.py` : appel HTTP à l'API Mistral (`mistral-small-latest` par défaut, `temperature=0.3`). Erreur Mistral → réponse `502` côté Python.
+  - `llm.py` : appel HTTP à l'API Mistral (`mistral-small-latest` par défaut, `temperature=0.3`). Erreur Mistral → réponse `502` côté Python. Base vectorielle absente → `503` ; toute autre erreur → `500` avec un message générique (le détail est journalisé côté serveur).
 
 ### Format de l'API Python
 
@@ -207,6 +207,8 @@ Interface sur http://localhost:5173 : ouvrez cette adresse dans votre navigateur
 | `ALLOWED_ORIGINS` | NestJS | `http://localhost:5173` | Origines autorisées par CORS, séparées par des virgules. Le joker `*` est ignoré. |
 | `AI_SERVICE_URL` | NestJS | `http://localhost:8000/ask-copilot` | URL complète du service Python (appel serveur à serveur, sans CORS). |
 | `PORT` | NestJS | `3000` | Port de l'orchestrateur. |
+| `DB_SYNCHRONIZE` | NestJS | `false` | `true` = TypeORM aligne le schéma SQLite sur les entités au démarrage. **Développement uniquement** : peut supprimer des colonnes, donc des données. |
+| `CHROMA_DB_PATH` | Python | `ai-service-python/chroma_db` | Dossier de la base vectorielle (lu par le service et par `build_vector_db.py`). |
 | `VITE_API_URL` | React (Vite) | `http://localhost:3000` | Adresse de l'orchestrateur, lue au démarrage/build. |
 
 Sans aucune variable, le comportement en local est inchangé. Voir `2-backend-nestjs/.env.example` (à exporter dans le shell : NestJS ne charge pas ce fichier) et `1-frontend-react/.env.example` (à copier en `.env`, Vite le lit seul). Le service Python n'a pas de CORS : il n'est appelé que par NestJS.
@@ -229,15 +231,15 @@ Redémarrez `python main.py` après avoir modifié `.env`.
 
 ### Tests
 
-Moteur IA (depuis `ai-service-python`, environnement virtuel activé, base vectorielle présente) :
+Moteur IA (depuis `ai-service-python`, environnement virtuel activé) :
 
 ```bash
-pytest test/test_main.py -v -s
+pytest -v
 ```
 
-Sept tests : requête valide (`200`), requête sans `description` (`422`), erreur LLM (`502`), et appel Mistral simulé (clé absente → simulation, en-tête et corps de la requête, erreurs HTTP). Aucun test n'appelle le vrai Mistral.
+ChromaDB est simulé dans les tests : aucune base vectorielle ni modèle d'embedding n'est nécessaire, et aucun test n'appelle le vrai Mistral. Ils couvrent l'API (`200`, `422`, `502`, `503`, `500` générique), l'appel Mistral simulé, la connexion paresseuse à ChromaDB et l'identité du nettoyage entre requête et indexation (le test qui exécute `data_prep.load_and_clean_data` est ignoré si `pandas` n'est pas installé).
 
-Orchestrateur : `npm test` (fichiers `*.spec.ts` générés par NestJS ; voir les points à corriger, ils ne déclarent pas les dépendances nécessaires).
+Orchestrateur (depuis `2-backend-nestjs`) : `npm run lint`, `npm test`, `npm run test:e2e`, `npm run build`.
 
 ### CI/CD
 
@@ -245,7 +247,7 @@ Les workflows s'appuient sur les modèles partagés de [`Ramcy-cloud/ci-template
 
 - **CI** (`.github/workflows/ci.yml`) — à chaque pull request et à chaque push sur `main` :
   - interface React : lint (`eslint`) et build Vite ;
-  - orchestrateur NestJS : tests unitaires (`npm test`), tests e2e (`npm run test:e2e`) et build. Le lint ESLint/Prettier est lancé mais **non bloquant** pour l'instant : le code existant contient déjà des erreurs (avertissement visible dans le résumé de chaque exécution) ;
+  - orchestrateur NestJS : tests unitaires (`npm test`), tests e2e (`npm run test:e2e`) lint ESLint/Prettier (bloquant) et build ;
   - moteur IA Python : tests `pytest` (sans clé Mistral, le service renvoie la réponse simulée).
 
   Chaque partie produit un artefact de build (`build-frontend`, `build-orchestrateur`, `build-moteur-ia`).
