@@ -1,0 +1,45 @@
+# --- Variables d'environnement (les modèles .env.example restent versionnés)
+.env
+.env.*
+!.env.example
+
+# --- Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+venv/
+.venv/
+*.egg-info/
+
+# --- Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Builds et couverture
+dist/
+build/
+coverage/
+
+# --- Données générées localement (voir le README pour les régénérer)
+*.sqlite
+*.sqlite3
+chroma_db/
+
+# --- IDE / éditeurs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.sublime-workspace
+
+# --- Systèmes d'exploitation
+.DS_Store
+Thumbs.db
+desktop.ini

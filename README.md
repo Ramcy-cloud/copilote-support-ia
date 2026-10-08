@@ -52,7 +52,7 @@ Cette méthode, qui consiste à **chercher** d'abord des informations utiles pui
 
 - Une page web avec un formulaire « Nouveau ticket » et un bouton **« Générer un Runbook avec l'IA »**.
 - Une zone **« Résolution suggérée »** qui affiche la réponse. Aujourd'hui, c'est toujours le même texte simulé (voir la capture ci-dessus).
-- Un **historique** des demandes enregistré dans une base de données locale (fichier `database.sqlite`).
+- Un **historique** des demandes enregistré dans une base de données locale (fichier `database.sqlite`, créé au premier lancement, non versionné).
 - Côté moteur, la réponse technique contient aussi le **prompt complet** construit avec les anciens tickets retrouvés (champ `prompt_utilise`) : c'est là qu'on peut vérifier que la recherche a trouvé les bons tickets.
 
 Pour obtenir de vraies réponses, il faudrait : remplacer les 4 tickets d'exemple par un véritable historique, et renseigner une clé Mistral (voir « Pour les développeurs »).
@@ -139,13 +139,13 @@ pip install -r requirements-data.txt   # en plus, pour construire la base vector
 
 > Deux fichiers de dépendances : `requirements.txt` suffit pour lancer le service et les tests ; `requirements-data.txt` (qui inclut le premier) ajoute `pandas`, utilisé uniquement par les scripts d'indexation `data_prep.py` / `build_vector_db.py`. Le service n'importe pas `pandas` : il reste plus léger à déployer.
 
-Générer la base vectorielle (une seule fois) :
+Générer la base vectorielle (obligatoire avant le premier lancement, puis à chaque modification des tickets de `data_prep.py`) :
 
 ```bash
 python build_vector_db.py
 ```
 
-Une base déjà construite est versionnée dans `ai-service-python/chroma_db/`. Cette étape est surtout nécessaire si vous modifiez les tickets de `data_prep.py`. Le service doit être lancé **depuis le dossier `ai-service-python`**, car le chemin `./chroma_db` est relatif.
+La base `chroma_db/` est **générée localement et n'est pas versionnée** (ignorée par git). Elle est créée par défaut dans `ai-service-python/chroma_db/`, quel que soit le dossier courant, ou dans le dossier indiqué par `CHROMA_DB_PATH`. Le script peut être relancé sans risque : les tickets existants sont mis à jour (`upsert`). Sans base, le service démarre quand même mais `POST /ask-copilot` répond `503` « Base de connaissances non initialisée ».
 
 #### Orchestrateur (NestJS)
 
@@ -153,6 +153,15 @@ Une base déjà construite est versionnée dans `ai-service-python/chroma_db/`. 
 cd 2-backend-nestjs
 npm install
 ```
+
+La base SQLite `database.sqlite` (historique des demandes) est **générée localement et n'est pas versionnée**. La synchronisation automatique du schéma TypeORM étant désactivée par défaut, créez la table au premier lancement en activant `DB_SYNCHRONIZE` une fois, en développement uniquement :
+
+```bash
+DB_SYNCHRONIZE=true npm run start:dev        # macOS / Linux / Git Bash
+$env:DB_SYNCHRONIZE="true"; npm run start:dev # PowerShell
+```
+
+Pour repartir de zéro : arrêter l'orchestrateur, supprimer `database.sqlite`, puis relancer de la même façon.
 
 #### Interface (React)
 
@@ -250,16 +259,17 @@ copilote-support-ia/
 ├── 1-frontend-react/        # Interface React + Vite (src/App.jsx)
 ├── 2-backend-nestjs/        # Orchestrateur NestJS
 │   ├── src/copilot/         # controller, service, module, ticket.entity
-│   └── database.sqlite      # Historique des demandes (SQLite)
+│   └── database.sqlite      # Historique des demandes (SQLite, généré, non versionné)
 ├── ai-service-python/
 │   ├── data_prep.py         # Tickets d'exemple + nettoyage
 │   ├── build_vector_db.py   # Création de la base vectorielle
 │   ├── rag_pipeline.py      # Recherche + construction du prompt
 │   ├── main.py              # API FastAPI
-│   ├── chroma_db/           # Base vectorielle générée
-│   ├── requirements.txt
-│   └── test/test_main.py
-├── chroma_db/               # Base ChromaDB vide (inutilisée par le code)
+│   ├── llm.py               # Appel à l'API Mistral (ou simulation)
+│   ├── chroma_db/           # Base vectorielle (générée par build_vector_db.py, non versionnée)
+│   ├── requirements.txt     # Service + tests
+│   ├── requirements-data.txt # + pandas, pour l'indexation
+│   └── test/                # test_main.py, test_llm.py, test_rag_pipeline.py
 ├── demo-interface.png
 └── README.md
 ```
