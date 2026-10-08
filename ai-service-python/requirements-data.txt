@@ -1,0 +1,4 @@
+# Dépendances des scripts d'indexation (data_prep.py, build_vector_db.py).
+# Le service FastAPI n'en a pas besoin : seul requirements.txt est installé pour l'exécuter.
+-r requirements.txt
+pandas

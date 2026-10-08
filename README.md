@@ -133,11 +133,11 @@ venv\Scripts\activate
 # macOS / Linux :
 source venv/bin/activate
 
-pip install -r requirements.txt
-pip install pandas   # absent de requirements.txt mais importé par data_prep.py
+pip install -r requirements.txt        # service FastAPI + tests
+pip install -r requirements-data.txt   # en plus, pour construire la base vectorielle
 ```
 
-> `data_prep.py` importe `pandas` : sans ce paquet, la préparation des données ne fonctionne pas.
+> Deux fichiers de dépendances : `requirements.txt` suffit pour lancer le service et les tests ; `requirements-data.txt` (qui inclut le premier) ajoute `pandas`, utilisé uniquement par les scripts d'indexation `data_prep.py` / `build_vector_db.py`. Le service n'importe pas `pandas` : il reste plus léger à déployer.
 
 Générer la base vectorielle (une seule fois) :
 
