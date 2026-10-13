@@ -19,7 +19,10 @@ describe('CopilotService', () => {
       providers: [
         CopilotService,
         { provide: HttpService, useValue: httpService },
-        { provide: getRepositoryToken(TicketEntity), useValue: ticketRepository },
+        {
+          provide: getRepositoryToken(TicketEntity),
+          useValue: ticketRepository,
+        },
       ],
     }).compile();
 
@@ -52,7 +55,9 @@ describe('CopilotService', () => {
 
   it('utilise AI_SERVICE_URL quand elle est définie', async () => {
     process.env.AI_SERVICE_URL = 'http://ia.example/ask';
-    httpService.post.mockReturnValue(of({ data: { resolution_suggeree: 'x' } }));
+    httpService.post.mockReturnValue(
+      of({ data: { resolution_suggeree: 'x' } }),
+    );
 
     await service.askAiCopilot('s', 'd');
 
@@ -62,7 +67,7 @@ describe('CopilotService', () => {
     );
   });
 
-  it("lève une HttpException 500 et ne sauvegarde rien si le service IA échoue", async () => {
+  it('lève une HttpException 500 et ne sauvegarde rien si le service IA échoue', async () => {
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     httpService.post.mockReturnValue(throwError(() => new Error('boom')));
 

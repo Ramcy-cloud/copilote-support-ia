@@ -8,9 +8,9 @@ import { TicketEntity } from './ticket.entity';
 @Module({
   imports: [
     HttpModule,
-    TypeOrmModule.forFeature([TicketEntity]) // Ajout de la table
+    TypeOrmModule.forFeature([TicketEntity]), // Ajout de la table
   ],
   providers: [CopilotService],
-  controllers: [CopilotController]
+  controllers: [CopilotController],
 })
 export class CopilotModule {}

@@ -10,7 +10,9 @@ import { CopilotModule } from './copilot/copilot.module';
       type: 'sqlite',
       database: 'database.sqlite',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: true, // Génère les tables automatiquement (super pour le dev)
+      // synchronize modifie le schéma au démarrage (et peut supprimer des colonnes/données) :
+      // désactivé par défaut, activable uniquement en dev avec DB_SYNCHRONIZE=true.
+      synchronize: process.env.DB_SYNCHRONIZE === 'true',
     }),
     CopilotModule,
   ],

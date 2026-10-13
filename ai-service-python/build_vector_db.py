@@ -1,6 +1,7 @@
 import chromadb
 # On importe ta fonction depuis le script précédent
 from data_prep import load_and_clean_data
+from rag_pipeline import COLLECTION_NAME, get_chroma_db_path
 
 def setup_vector_db():
     print("1. Récupération des données nettoyées...")
@@ -8,11 +9,13 @@ def setup_vector_db():
     df = load_and_clean_data()
     
     print("\n2. Initialisation de ChromaDB...")
-    # On crée un stockage persistant local dans le dossier courant
-    client = chromadb.PersistentClient(path="./chroma_db")
+    # Stockage persistant local : même chemin que le service (CHROMA_DB_PATH ou ./chroma_db
+    # à côté du code), quel que soit le dossier courant
+    db_path = get_chroma_db_path()
+    client = chromadb.PersistentClient(path=str(db_path))
     
     # On crée une collection (l'équivalent d'une table pour les bases vectorielles)
-    collection = client.get_or_create_collection(name="sap_tickets")
+    collection = client.get_or_create_collection(name=COLLECTION_NAME)
     
     print("3. Vectorisation et insertion dans la base (cela peut prendre quelques secondes au premier lancement pour télécharger le modèle d'embedding)...")
     
@@ -23,14 +26,15 @@ def setup_vector_db():
     ids = df['Ticket_ID'].tolist()
     
     # Ajout à la collection ChromaDB
-    collection.add(
+    # upsert (et non add) : relancer le script met à jour les tickets existants
+    collection.upsert(
         documents=documents,
         metadatas=metadatas,
         ids=ids
     )
     
     print("\n✅ Base de données vectorielle créée avec succès !")
-    print(f"📁 Les données sont sauvegardées dans le dossier : ./chroma_db")
+    print(f"📁 Les données sont sauvegardées dans le dossier : {db_path}")
     print(f"📊 Nombre de tickets indexés : {collection.count()}")
 
 if __name__ == "__main__":

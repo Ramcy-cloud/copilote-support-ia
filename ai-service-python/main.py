@@ -1,9 +1,10 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from rag_pipeline import build_rag_prompt
+from rag_pipeline import KnowledgeBaseUnavailable, build_rag_prompt
 from llm import LLMError, generate_resolution
 
 # Charge ai-service-python/.env (MISTRAL_API_KEY, MISTRAL_MODEL)
@@ -11,6 +12,8 @@ load_dotenv(Path(__file__).parent / ".env")
 
 # Initialisation de l'API FastAPI
 app = FastAPI(title="Copilote Support IA", version="1.0")
+
+logger = logging.getLogger("copilote")
 
 # Définition du format de la requête attendue
 class TicketRequest(BaseModel):
@@ -35,11 +38,19 @@ async def ask_copilot(ticket: TicketRequest):
             "prompt_utilise": prompt # Utile pour le debug
         }
 
+    except KnowledgeBaseUnavailable as e:
+        logger.error("Base de connaissances indisponible : %s", e)
+        raise HTTPException(
+            status_code=503, detail="Base de connaissances non initialisée"
+        )
     except LLMError as e:
         print(f"Erreur LLM : {e}")
         raise HTTPException(status_code=502, detail="Erreur du service LLM")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        # Le détail (message + trace) reste dans les logs serveur : il peut contenir
+        # des chemins, des requêtes ou des informations internes à ne pas exposer.
+        logger.exception("Erreur inattendue lors du traitement de /ask-copilot")
+        raise HTTPException(status_code=500, detail="Erreur interne du service IA")
 
 if __name__ == "__main__":
     import uvicorn

@@ -35,11 +35,9 @@ jobs:
     with:
       working-directory: 2-backend-nestjs
       node-version: "22"
-      # Lint SANS --fix (le script « npm run lint » modifie les fichiers).
-      # Non bloquant pour l'instant : le code existant contient déjà des erreurs ESLint/Prettier
-      # (voir l'avertissement dans le résumé de l'exécution). À corriger puis repasser à false.
+      # Lint SANS --fix (le script « npm run lint » modifie les fichiers). Bloquant.
       lint-command: npx eslint "{src,apps,libs,test}/**/*.ts"
-      lint-allow-failure: true
+      lint-allow-failure: false
       test-command: npm test && npm run test:e2e
       build-command: npm run build
       artifact-name: build-orchestrateur
