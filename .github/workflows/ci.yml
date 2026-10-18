@@ -1,4 +1,4 @@
-# CI : vérifie chaque pull request et chaque push sur main.
+# CI : vérifie chaque pull request et chaque push sur dev ou main.
 # Les étapes sont définies une seule fois dans Ramcy-cloud/ci-templates (workflows réutilisables).
 #
 # Le projet n'a pas de Dockerfile : la CI produit des artefacts de build (build-*),
@@ -8,7 +8,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [dev, main]
 
 permissions:
   contents: read
