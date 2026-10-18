@@ -1,3 +1,4 @@
+import logging
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -5,6 +6,9 @@ from pathlib import Path
 import chromadb
 
 from data_prep import build_embedding_context
+
+# Traces sans emoji ni accent : une console Windows en cp1252 ne sait pas les encoder.
+logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "sap_tickets"
 # Par défaut : dossier chroma_db à côté de ce fichier (indépendant du dossier courant)
@@ -60,14 +64,14 @@ def build_rag_prompt(new_ticket_subject, new_ticket_description):
     # Même prétraitement que les tickets indexés (data_prep.build_embedding_context)
     query_text = build_embedding_context(new_ticket_subject, new_ticket_description)
     
-    print(f"🔍 Recherche dans la base de connaissances pour : '{new_ticket_subject}'...\n")
+    logger.info("Recherche dans la base de connaissances pour : '%s'", new_ticket_subject)
     
     # Étape 1 : Retrieval
     retrieved_data = retrieve_similar_tickets(query_text)
     
     # Étape 2 : Construction du contexte
     context = ""
-    print("--- 📚 Tickets historiques trouvés ---")
+    logger.info("--- Tickets historiques trouves ---")
     
     # ChromaDB renvoie des listes imbriquées, on boucle sur le premier résultat
     for i in range(len(retrieved_data['documents'][0])):
@@ -76,10 +80,10 @@ def build_rag_prompt(new_ticket_subject, new_ticket_description):
         distance = retrieved_data['distances'][0][i] 
         # Note : Plus la distance est proche de 0, plus la similarité sémantique est forte
         
-        print(f"✅ Match {i+1} (Distance: {distance:.4f})")
-        print(f"   Ancien Ticket ID : {metadata['Ticket_ID']}")
-        print(f"   Problème : {doc}")
-        print(f"   Résolution appliquée : {metadata['Resolution']}\n")
+        logger.info("Match %s (Distance: %.4f)", i + 1, distance)
+        logger.info("   Ancien Ticket ID : %s", metadata["Ticket_ID"])
+        logger.info("   Probleme : %s", doc)
+        logger.info("   Resolution appliquee : %s", metadata["Resolution"])
         
         context += f"[Ancien Ticket]\nProblème: {doc}\nRésolution appliquée: {metadata['Resolution']}\n\n"
         
@@ -97,13 +101,14 @@ Description : {new_ticket_description}
 
 Rédige la résolution technique suggérée :"""
 
-    print("--- 🤖 Prompt final généré (Prêt pour le LLM) ---")
-    print(prompt)
+    logger.info("--- Prompt final genere (pret pour le LLM) ---\n%s", prompt)
     
     # Dans la version finale de l'API, on retournerait ce prompt ou on appellerait directement l'API d'un LLM ici.
     return prompt
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
     # Testons le pipeline avec la simulation d'un nouveau ticket entrant
     nouveau_sujet = "Erreur 500 sur la prod SAP"
     nouvelle_description = "Bonjour, impossible d'accéder à SAP ECC ce matin, la page charge dans le vide puis affiche un code 500."
