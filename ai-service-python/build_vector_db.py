@@ -33,9 +33,10 @@ def setup_vector_db():
         ids=ids
     )
     
-    print("\n✅ Base de données vectorielle créée avec succès !")
-    print(f"📁 Les données sont sauvegardées dans le dossier : {db_path}")
-    print(f"📊 Nombre de tickets indexés : {collection.count()}")
+    # Sans emoji : une console Windows en cp1252 ne sait pas les encoder.
+    print("\nBase de données vectorielle créée avec succès !")
+    print(f"Les données sont sauvegardées dans le dossier : {db_path}")
+    print(f"Nombre de tickets indexés : {collection.count()}")
 
 if __name__ == "__main__":
     setup_vector_db()

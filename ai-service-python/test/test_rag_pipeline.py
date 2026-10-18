@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 import sys
@@ -123,3 +124,18 @@ def test_indexation_utilise_la_meme_fonction():
 def test_clean_text_valeurs_vides():
     assert data_prep.clean_text(None) == ""
     assert data_prep.clean_text(float("nan")) == ""
+
+
+# --- d) traces lisibles sur une console Windows ------------------------------
+
+
+def test_traces_encodables_en_cp1252(fake_collection, caplog, capsys):
+    """Un emoji dans une trace plante la requête sur une console cp1252 (/ask-copilot en 500)."""
+    with caplog.at_level(logging.INFO, logger=rag_pipeline.__name__):
+        rag_pipeline.build_rag_prompt("Erreur connexion SAP", "Impossible d'accéder à ECC.")
+
+    assert caplog.records, "le pipeline doit tracer son déroulement"
+    for record in caplog.records:
+        record.getMessage().encode("cp1252")  # lève UnicodeEncodeError si un emoji revient
+
+    assert capsys.readouterr().out == "", "les traces passent par logging, pas par print"
