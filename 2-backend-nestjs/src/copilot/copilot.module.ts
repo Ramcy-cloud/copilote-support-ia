@@ -7,7 +7,8 @@ import { TicketEntity } from './ticket.entity';
 
 @Module({
   imports: [
-    HttpModule,
+    // Délai maximal pour le service IA et aucune redirection suivie
+    HttpModule.register({ timeout: 60_000, maxRedirects: 0 }),
     TypeOrmModule.forFeature([TicketEntity]), // Ajout de la table
   ],
   providers: [CopilotService],

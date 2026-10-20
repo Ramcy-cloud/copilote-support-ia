@@ -97,3 +97,16 @@ def test_base_absente_renvoie_503(monkeypatch):
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Base de connaissances non initialisée"}
+
+
+def test_ticket_trop_long_renvoie_422():
+    """Les champs sont bornés : un texte démesuré est refusé avant d'atteindre le LLM"""
+    response = client.post("/ask-copilot", json={"sujet": "x" * 201, "description": "ok"})
+    assert response.status_code == 422
+    response = client.post("/ask-copilot", json={"sujet": "ok", "description": "y" * 5001})
+    assert response.status_code == 422
+
+
+def test_champs_vides_renvoient_422():
+    response = client.post("/ask-copilot", json={"sujet": "", "description": ""})
+    assert response.status_code == 422

@@ -1,8 +1,9 @@
 import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from rag_pipeline import KnowledgeBaseUnavailable, build_rag_prompt
 from llm import LLMError, generate_resolution
@@ -16,9 +17,10 @@ app = FastAPI(title="Copilote Support IA", version="1.0")
 logger = logging.getLogger("copilote")
 
 # Définition du format de la requête attendue
+# Longueurs bornées : le texte part dans le prompt du LLM (coût et abus)
 class TicketRequest(BaseModel):
-    sujet: str
-    description: str
+    sujet: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=5000)
 
 # Définition de la route principale
 @app.post("/ask-copilot")
@@ -44,7 +46,7 @@ async def ask_copilot(ticket: TicketRequest):
             status_code=503, detail="Base de connaissances non initialisée"
         )
     except LLMError as e:
-        print(f"Erreur LLM : {e}")
+        logger.error("Erreur LLM : %s", e)
         raise HTTPException(status_code=502, detail="Erreur du service LLM")
     except Exception:
         # Le détail (message + trace) reste dans les logs serveur : il peut contenir
@@ -54,5 +56,10 @@ async def ask_copilot(ticket: TicketRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    # Lancement du serveur sur le port 8000
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Service interne, appelé uniquement par NestJS : écoute en local par défaut.
+    # HOST=0.0.0.0 seulement dans un conteneur derrière un réseau privé.
+    uvicorn.run(
+        app,
+        host=os.getenv("HOST", "127.0.0.1"),
+        port=int(os.getenv("AI_SERVICE_PORT", "8000")),
+    )
