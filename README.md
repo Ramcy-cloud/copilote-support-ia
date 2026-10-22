@@ -207,6 +207,8 @@ Interface sur http://localhost:5173 : ouvrez cette adresse dans votre navigateur
 | `ALLOWED_ORIGINS` | NestJS | `http://localhost:5173` | Origines autorisées par CORS, séparées par des virgules. Le joker `*` est ignoré. |
 | `AI_SERVICE_URL` | NestJS | `http://localhost:8000/ask-copilot` | URL complète du service Python (appel serveur à serveur, sans CORS). |
 | `PORT` | NestJS | `3000` | Port de l'orchestrateur. |
+| `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | NestJS | `20` / `60000` | Requêtes max. par adresse IP et par fenêtre (ms) sur `/copilot`, au-delà : `429`. |
+| `HOST` / `AI_SERVICE_PORT` | Python | `127.0.0.1` / `8000` | Adresse et port du service IA, interne (écoute en local seulement par défaut). |
 | `DB_SYNCHRONIZE` | NestJS | `false` | `true` = TypeORM aligne le schéma SQLite sur les entités au démarrage. **Développement uniquement** : peut supprimer des colonnes, donc des données. |
 | `CHROMA_DB_PATH` | Python | `ai-service-python/chroma_db` | Dossier de la base vectorielle (lu par le service et par `build_vector_db.py`). |
 | `VITE_API_URL` | React (Vite) | `http://localhost:3000` | Adresse de l'orchestrateur, lue au démarrage/build. |
@@ -279,3 +281,12 @@ copilote-support-ia/
 ---
 
 *Projet réalisé dans le cadre d'une preuve de concept d'industrialisation de l'IA pour les opérations SAP.*
+
+
+### Sécurité
+
+- CORS limité à `ALLOWED_ORIGINS`, en-têtes de sécurité (`nosniff`, `X-Frame-Options`, CSP stricte), `x-powered-by` masqué.
+- Entrées validées : `sujet` (200 caractères max.) et `description` (5000 max.) obligatoires, côté NestJS (`400`) et côté Python (`422`).
+- Limitation du débit sur `/copilot` pour protéger le quota du LLM. Il n'y a **pas d'authentification** : ne pas exposer l'API sur Internet sans la placer derrière un système d'authentification.
+- L'API ne renvoie pas le prompt interne (`prompt_utilise`, historique RAG) au navigateur ; le service Python n'est joignable qu'en local.
+- Les clés (`MISTRAL_API_KEY`) restent dans `.env`, ignoré par git.

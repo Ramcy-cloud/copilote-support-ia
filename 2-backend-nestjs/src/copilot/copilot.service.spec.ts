@@ -34,7 +34,12 @@ describe('CopilotService', () => {
   });
 
   it('appelle le service IA, sauvegarde le ticket et renvoie la réponse', async () => {
-    const data = { resolution_suggeree: 'Étapes' };
+    const data = {
+      status: 'success',
+      sujet_analyse: 'sujet',
+      resolution_suggeree: 'Étapes',
+      prompt_utilise: 'prompt interne secret',
+    };
     httpService.post.mockReturnValue(of({ data }));
     ticketRepository.create.mockReturnValue({ id: 1 });
 
@@ -50,7 +55,12 @@ describe('CopilotService', () => {
       resolution_ia: 'Étapes',
     });
     expect(ticketRepository.save).toHaveBeenCalledWith({ id: 1 });
-    expect(result).toBe(data);
+    expect(result).toEqual({
+      status: 'success',
+      sujet_analyse: 'sujet',
+      resolution_suggeree: 'Étapes',
+    });
+    expect(result).not.toHaveProperty('prompt_utilise');
   });
 
   it('utilise AI_SERVICE_URL quand elle est définie', async () => {

@@ -14,6 +14,12 @@ export interface AiCopilotResponse {
   prompt_utilise: string;
 }
 
+/** Ce que l'API expose au navigateur : jamais le prompt interne ni l'historique RAG. */
+export type CopilotAnswer = Pick<
+  AiCopilotResponse,
+  'status' | 'sujet_analyse' | 'resolution_suggeree'
+>;
+
 @Injectable()
 export class CopilotService {
   constructor(
@@ -25,7 +31,7 @@ export class CopilotService {
   async askAiCopilot(
     sujet: string,
     description: string,
-  ): Promise<AiCopilotResponse> {
+  ): Promise<CopilotAnswer> {
     const pythonApiUrl =
       process.env.AI_SERVICE_URL ?? 'http://localhost:8000/ask-copilot';
 
@@ -48,8 +54,12 @@ export class CopilotService {
       });
       await this.ticketRepository.save(newTicket);
 
-      // 3. Retour au Frontend
-      return response.data;
+      // 3. Retour au Frontend (sans `prompt_utilise`, réservé au débogage côté Python)
+      return {
+        status: response.data.status,
+        sujet_analyse: response.data.sujet_analyse,
+        resolution_suggeree: resolution,
+      };
     } catch (error: unknown) {
       const detail: unknown = isAxiosError(error)
         ? (error.response?.data ?? error.message)
