@@ -110,3 +110,49 @@ def test_ticket_trop_long_renvoie_422():
 def test_champs_vides_renvoient_422():
     response = client.post("/ask-copilot", json={"sujet": "", "description": ""})
     assert response.status_code == 422
+
+
+def test_reponse_marquee_simulee_sans_cle(fake_collection):
+    response = client.post("/ask-copilot", json={"sujet": "s", "description": "d"})
+    assert response.status_code == 200
+    assert response.json()["simulated"] is True
+
+
+def test_reponse_reelle_non_marquee_simulee(fake_collection, monkeypatch):
+    import main
+
+    async def reponse(prompt):
+        return "Vraie réponse"
+
+    monkeypatch.setenv("MISTRAL_API_KEY", "cle-de-test")
+    monkeypatch.setattr(main, "generate_resolution", reponse)
+    response = client.post("/ask-copilot", json={"sujet": "s", "description": "d"})
+    assert response.json()["simulated"] is False
+    assert response.json()["resolution_suggeree"] == "Vraie réponse"
+
+
+def test_simulation_refusee_si_interdite(fake_collection, monkeypatch):
+    monkeypatch.setenv("ALLOW_SIMULATION", "false")
+    response = client.post("/ask-copilot", json={"sujet": "s", "description": "d"})
+    assert response.status_code == 503
+
+
+def test_recherche_rag_executee_hors_de_la_boucle_asyncio(fake_collection):
+    """build_rag_prompt (bloquant) doit tourner dans un thread, pas dans la boucle."""
+    import threading
+
+    import main
+
+    appels = []
+    original = main.build_rag_prompt
+
+    def espion(sujet, description):
+        appels.append(threading.current_thread() is threading.main_thread())
+        return original(sujet, description)
+
+    main.build_rag_prompt = espion
+    try:
+        client.post("/ask-copilot", json={"sujet": "s", "description": "d"})
+    finally:
+        main.build_rag_prompt = original
+    assert appels == [False]
