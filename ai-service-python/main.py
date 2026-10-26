@@ -3,10 +3,11 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from rag_pipeline import KnowledgeBaseUnavailable, build_rag_prompt
-from llm import LLMError, generate_resolution
+from llm import LLMError, generate_resolution, llm_configured
 
 # Charge ai-service-python/.env (MISTRAL_API_KEY, MISTRAL_MODEL)
 load_dotenv(Path(__file__).parent / ".env")
@@ -22,12 +23,25 @@ class TicketRequest(BaseModel):
     sujet: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1, max_length=5000)
 
+def simulation_autorisee() -> bool:
+    """ALLOW_SIMULATION=false : sans clé Mistral, le service refuse au lieu de servir un faux texte."""
+    return os.getenv("ALLOW_SIMULATION", "true").strip().lower() != "false"
+
+
 # Définition de la route principale
 @app.post("/ask-copilot")
 async def ask_copilot(ticket: TicketRequest):
+    simulated = not llm_configured()
+    if simulated and not simulation_autorisee():
+        logger.error("MISTRAL_API_KEY absente et ALLOW_SIMULATION=false")
+        raise HTTPException(status_code=503, detail="LLM non configuré")
+
     try:
-        # 1. Génération du prompt enrichi via ton RAG
-        prompt = build_rag_prompt(ticket.sujet, ticket.description)
+        # 1. Génération du prompt enrichi via le RAG. La recherche (ChromaDB + embeddings)
+        # est bloquante : exécutée dans un thread pour ne pas figer les autres requêtes.
+        prompt = await run_in_threadpool(
+            build_rag_prompt, ticket.sujet, ticket.description
+        )
         
         # 2. Appel à Mistral (ou réponse simulée si MISTRAL_API_KEY n'est pas défini)
         resolution_generee = await generate_resolution(prompt)
@@ -37,6 +51,7 @@ async def ask_copilot(ticket: TicketRequest):
             "status": "success",
             "sujet_analyse": ticket.sujet,
             "resolution_suggeree": resolution_generee,
+            "simulated": simulated,  # vrai = texte d'exemple, pas une vraie réponse IA
             "prompt_utilise": prompt # Utile pour le debug
         }
 

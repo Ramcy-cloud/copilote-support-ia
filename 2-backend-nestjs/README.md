@@ -20,6 +20,7 @@ NestJS ne charge pas de fichier `.env` : exportez ces variables dans le shell (m
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | Origines autorisées par CORS, séparées par des virgules (le joker `*` est ignoré). |
 | `AI_SERVICE_URL` | `http://localhost:8000/ask-copilot` | URL complète de la route du service IA Python. |
 | `PORT` | `3000` | Port d'écoute. |
+| `DB_PATH` | `database.sqlite` | Chemin de la base SQLite (les tests utilisent `:memory:`). |
 | `DB_SYNCHRONIZE` | `false` | `true` = création/mise à jour automatique du schéma SQLite au démarrage. **Développement uniquement** : peut supprimer des colonnes, donc des données. |
 
 ## Installation
@@ -28,11 +29,7 @@ NestJS ne charge pas de fichier `.env` : exportez ces variables dans le shell (m
 npm install
 ```
 
-`database.sqlite` n'est pas versionné. Au premier lancement, créez la table en activant une fois la synchronisation :
-
-```bash
-DB_SYNCHRONIZE=true npm run start:dev
-```
+`database.sqlite` n'est pas versionné. La table `tickets_historique` est créée automatiquement au premier démarrage par une migration (`src/migrations`) : aucune option à activer.
 
 ## Lancement
 
