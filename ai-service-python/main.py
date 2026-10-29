@@ -72,9 +72,9 @@ async def ask_copilot(ticket: TicketRequest):
 if __name__ == "__main__":
     import uvicorn
     # Service interne, appelé uniquement par NestJS : écoute en local par défaut.
-    # HOST=0.0.0.0 seulement dans un conteneur derrière un réseau privé.
+    # AI_SERVICE_HOST=0.0.0.0 seulement dans un conteneur derrière un réseau privé.
     uvicorn.run(
         app,
-        host=os.getenv("HOST", "127.0.0.1"),
+        host=os.getenv("AI_SERVICE_HOST", "127.0.0.1"),
         port=int(os.getenv("AI_SERVICE_PORT", "8000")),
     )

@@ -211,7 +211,7 @@ Interface sur http://localhost:5173 : ouvrez cette adresse dans votre navigateur
 | `AI_SERVICE_URL` | NestJS | `http://localhost:8000/ask-copilot` | URL complète du service Python (appel serveur à serveur, sans CORS). |
 | `PORT` | NestJS | `3000` | Port de l'orchestrateur. |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | NestJS | `20` / `60000` | Requêtes max. par adresse IP et par fenêtre (ms) sur `/copilot`, au-delà : `429`. |
-| `HOST` / `AI_SERVICE_PORT` | Python | `127.0.0.1` / `8000` | Adresse et port du service IA, interne (écoute en local seulement par défaut). |
+| `AI_SERVICE_HOST` / `AI_SERVICE_PORT` | Python | `127.0.0.1` / `8000` | Adresse et port du service IA, interne (écoute en local seulement par défaut). |
 | `DB_PATH` | NestJS | `database.sqlite` | Chemin de la base SQLite (les tests utilisent `:memory:`). |
 | `ALLOW_SIMULATION` | Python | `true` | `false` = sans clé Mistral, le service répond `503` au lieu de renvoyer le texte simulé (conseillé en production). |
 | `DB_SYNCHRONIZE` | NestJS | `false` | `true` = TypeORM aligne le schéma SQLite sur les entités au démarrage. **Développement uniquement** : peut supprimer des colonnes, donc des données. |
@@ -261,6 +261,14 @@ Les workflows s'appuient sur les modèles partagés de [`Ramcy-cloud/ci-template
 - **CD** (`.github/workflows/cd.yml`) — le projet n'a pas de Dockerfile : quand la CI est verte sur `main`, une livraison démarre puis **attend une validation manuelle** (environnement GitHub `production`). Pour livrer : onglet *Actions* → exécution *CD* → **Review deployments** → cocher `production` → **Approve and deploy**. Les artefacts sont alors republiés en un paquet `livraison-<sha>` conservé 90 jours (téléchargeable depuis la page de l'exécution).
 - Aucun secret n'est nécessaire en CI. `MISTRAL_API_KEY` ne sert qu'à l'exécution réelle du moteur IA.
 
+### Sécurité
+
+- CORS limité à `ALLOWED_ORIGINS`, en-têtes de sécurité (`nosniff`, `X-Frame-Options`, CSP stricte), `x-powered-by` masqué.
+- Entrées validées : `sujet` (200 caractères max.) et `description` (5000 max.) obligatoires, côté NestJS (`400`) et côté Python (`422`).
+- Limitation du débit sur `/copilot` pour protéger le quota du LLM. Il n'y a **pas d'authentification** : ne pas exposer l'API sur Internet sans la placer derrière un système d'authentification.
+- L'API ne renvoie pas le prompt interne (`prompt_utilise`, historique RAG) au navigateur ; le service Python n'est joignable qu'en local.
+- Les clés (`MISTRAL_API_KEY`) restent dans `.env`, ignoré par git.
+
 ### Structure du projet
 
 ```
@@ -286,12 +294,3 @@ copilote-support-ia/
 ---
 
 *Projet réalisé dans le cadre d'une preuve de concept d'industrialisation de l'IA pour les opérations SAP.*
-
-
-### Sécurité
-
-- CORS limité à `ALLOWED_ORIGINS`, en-têtes de sécurité (`nosniff`, `X-Frame-Options`, CSP stricte), `x-powered-by` masqué.
-- Entrées validées : `sujet` (200 caractères max.) et `description` (5000 max.) obligatoires, côté NestJS (`400`) et côté Python (`422`).
-- Limitation du débit sur `/copilot` pour protéger le quota du LLM. Il n'y a **pas d'authentification** : ne pas exposer l'API sur Internet sans la placer derrière un système d'authentification.
-- L'API ne renvoie pas le prompt interne (`prompt_utilise`, historique RAG) au navigateur ; le service Python n'est joignable qu'en local.
-- Les clés (`MISTRAL_API_KEY`) restent dans `.env`, ignoré par git.

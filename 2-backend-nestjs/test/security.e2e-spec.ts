@@ -12,7 +12,7 @@ describe('Sécurité de l’API (e2e)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleFixture.createNestApplication<NestExpressApplication>();
-    applySecurity(app, { max: 8, windowMs: 60_000 });
+    applySecurity(app, { max: 100, windowMs: 60_000 });
     await app.init();
   });
 
@@ -43,20 +43,42 @@ describe('Sécurité de l’API (e2e)', () => {
       .send(body)
       .expect(400);
   });
+});
 
-  it('limite le débit : 429 au-delà du maximum, avec Retry-After', async () => {
-    // les 6 requêtes ci-dessus ont déjà consommé une partie du quota (8)
-    let dernier = 0;
-    let retryAfter: string | undefined;
-    for (let i = 0; i < 10; i++) {
-      const res = await request(app.getHttpServer())
+describe('Limitation du débit (e2e)', () => {
+  let app: NestExpressApplication;
+
+  // Application neuve à chaque test : le quota ne dépend d'aucun autre test.
+  beforeEach(async () => {
+    const moduleFixture = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+    app = moduleFixture.createNestApplication<NestExpressApplication>();
+    applySecurity(app, { max: 3, windowMs: 60_000 });
+    await app.init();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('accepte exactement le maximum de requêtes puis répond 429 avec Retry-After', async () => {
+    for (let i = 0; i < 3; i++) {
+      await request(app.getHttpServer())
         .post('/copilot/ask')
-        .send({});
-      dernier = res.status;
-      retryAfter = res.headers['retry-after'];
-      if (dernier === 429) break;
+        .send({})
+        .expect(400);
     }
-    expect(dernier).toBe(429);
-    expect(Number(retryAfter)).toBeGreaterThan(0);
+    const res = await request(app.getHttpServer())
+      .post('/copilot/ask')
+      .send({})
+      .expect(429);
+    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('ne limite pas les routes hors /copilot', async () => {
+    for (let i = 0; i < 5; i++) {
+      await request(app.getHttpServer()).get('/').expect(200);
+    }
   });
 });
