@@ -20,6 +20,11 @@ class LLMError(Exception):
     """Échec de l'appel au LLM (message sûr à exposer, sans détail sensible)."""
 
 
+def llm_configured() -> bool:
+    """Vrai si une clé Mistral est définie ; sinon le service répond par la simulation."""
+    return bool(os.getenv("MISTRAL_API_KEY", "").strip())
+
+
 async def generate_resolution(prompt: str, transport: httpx.AsyncBaseTransport | None = None) -> str:
     """Appelle Mistral si MISTRAL_API_KEY est défini, sinon renvoie la réponse simulée."""
     api_key = os.getenv("MISTRAL_API_KEY", "").strip()

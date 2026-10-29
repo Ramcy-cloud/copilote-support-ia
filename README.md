@@ -99,9 +99,12 @@ Réponse :
   "status": "success",
   "sujet_analyse": "...",
   "resolution_suggeree": "[SIMULATION LLM] : ...",
+  "simulated": true,
   "prompt_utilise": "..."
 }
 ```
+
+`simulated` vaut `true` quand aucune clé Mistral n'est définie (texte d'exemple). Avec `ALLOW_SIMULATION=false`, le service répond `503` à la place. NestJS transmet `simulated` mais jamais `prompt_utilise`, et traduit les pannes du service IA en `503` (injoignable ou non prêt), `504` (délai dépassé) ou `502` (échec ou réponse inattendue).
 
 Documentation interactive : http://localhost:8000/docs
 
@@ -154,7 +157,7 @@ cd 2-backend-nestjs
 npm install
 ```
 
-La base SQLite `database.sqlite` (historique des demandes) est **générée localement et n'est pas versionnée**. La synchronisation automatique du schéma TypeORM étant désactivée par défaut, créez la table au premier lancement en activant `DB_SYNCHRONIZE` une fois, en développement uniquement :
+La base SQLite `database.sqlite` (historique des demandes) est **générée localement et n'est pas versionnée**. La table `tickets_historique` est **créée automatiquement au premier démarrage** par une migration TypeORM. `DB_SYNCHRONIZE` (désactivé par défaut) ne sert plus qu'à aligner le schéma sur les entités pendant le développement :
 
 ```bash
 DB_SYNCHRONIZE=true npm run start:dev        # macOS / Linux / Git Bash
@@ -209,6 +212,8 @@ Interface sur http://localhost:5173 : ouvrez cette adresse dans votre navigateur
 | `PORT` | NestJS | `3000` | Port de l'orchestrateur. |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | NestJS | `20` / `60000` | Requêtes max. par adresse IP et par fenêtre (ms) sur `/copilot`, au-delà : `429`. |
 | `AI_SERVICE_HOST` / `AI_SERVICE_PORT` | Python | `127.0.0.1` / `8000` | Adresse et port du service IA, interne (écoute en local seulement par défaut). |
+| `DB_PATH` | NestJS | `database.sqlite` | Chemin de la base SQLite (les tests utilisent `:memory:`). |
+| `ALLOW_SIMULATION` | Python | `true` | `false` = sans clé Mistral, le service répond `503` au lieu de renvoyer le texte simulé (conseillé en production). |
 | `DB_SYNCHRONIZE` | NestJS | `false` | `true` = TypeORM aligne le schéma SQLite sur les entités au démarrage. **Développement uniquement** : peut supprimer des colonnes, donc des données. |
 | `CHROMA_DB_PATH` | Python | `ai-service-python/chroma_db` | Dossier de la base vectorielle (lu par le service et par `build_vector_db.py`). |
 | `VITE_API_URL` | React (Vite) | `http://localhost:3000` | Adresse de l'orchestrateur, lue au démarrage/build. |
