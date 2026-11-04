@@ -43,3 +43,8 @@ chroma_db/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- Historique reel de tickets (donnees internes, jamais versionnees) ------
+# Le PoC se replie sur 4 exemples ecrits dans data_prep.py si ce fichier est absent.
+ai-service-python/tickets.csv
+tickets.csv

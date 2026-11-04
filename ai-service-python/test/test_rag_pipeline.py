@@ -109,8 +109,10 @@ def test_requete_nettoyee_comme_les_donnees_indexees(fake_collection):
     ]
 
 
-def test_indexation_utilise_la_meme_fonction():
+def test_indexation_utilise_la_meme_fonction(tmp_path, monkeypatch):
     pytest.importorskip("pandas")
+    # Independant d'un eventuel historique reel present sur le poste.
+    monkeypatch.setenv("TICKETS_CSV", str(tmp_path / "absent.csv"))
     df = data_prep.load_and_clean_data()
     for _, row in df.iterrows():
         assert row["Contexte_Pour_Embedding"] == data_prep.build_embedding_context(
