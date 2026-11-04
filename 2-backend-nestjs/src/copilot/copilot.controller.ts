@@ -1,21 +1,18 @@
-import { BadRequestException, Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { texteValide } from '../validation';
 import { CopilotAnswer, CopilotService } from './copilot.service';
 
 export const MAX_SUJET = 200;
 export const MAX_DESCRIPTION = 5000;
 
-/** Texte obligatoire, non vide, de longueur bornée (le texte est envoyé au LLM). */
-function texteValide(valeur: unknown, champ: string, max: number): string {
-  if (typeof valeur !== 'string' || valeur.trim() === '') {
-    throw new BadRequestException(`${champ} est obligatoire`);
-  }
-  if (valeur.length > max) {
-    throw new BadRequestException(`${champ} dépasse ${max} caractères`);
-  }
-  return valeur;
-}
-
+/**
+ * Route authentifiée : le quota du LLM et l'historique des incidents ne sont
+ * pas publics. Le garde s'exécute avant la validation, donc une requête sans
+ * jeton reçoit 401 et non 400.
+ */
 @Controller('copilot')
+@UseGuards(JwtAuthGuard)
 export class CopilotController {
   constructor(private readonly copilotService: CopilotService) {}
 

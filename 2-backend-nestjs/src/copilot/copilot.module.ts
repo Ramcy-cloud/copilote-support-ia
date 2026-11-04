@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { CopilotService } from './copilot.service';
 import { CopilotController } from './copilot.controller';
 import { TicketEntity } from './ticket.entity';
@@ -10,6 +11,7 @@ import { TicketEntity } from './ticket.entity';
     // Délai maximal pour le service IA et aucune redirection suivie
     HttpModule.register({ timeout: 60_000, maxRedirects: 0 }),
     TypeOrmModule.forFeature([TicketEntity]), // Ajout de la table
+    AuthModule, // fournit JwtAuthGuard et le JwtService qu'il utilise
   ],
   providers: [CopilotService],
   controllers: [CopilotController],
