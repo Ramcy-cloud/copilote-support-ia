@@ -3,9 +3,11 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
 import { applySecurity } from './../src/security';
+import { enteteAuth } from './auth.helper';
 
 describe('Sécurité de l’API (e2e)', () => {
   let app: NestExpressApplication;
+  let auth: [string, string];
 
   beforeAll(async () => {
     const moduleFixture = await Test.createTestingModule({
@@ -14,6 +16,7 @@ describe('Sécurité de l’API (e2e)', () => {
     app = moduleFixture.createNestApplication<NestExpressApplication>();
     applySecurity(app, { max: 100, windowMs: 60_000 });
     await app.init();
+    auth = await enteteAuth(app);
   });
 
   afterAll(async () => {
@@ -40,6 +43,7 @@ describe('Sécurité de l’API (e2e)', () => {
   ])('refuse une requête invalide (%s) avec 400', async (_nom, body) => {
     await request(app.getHttpServer())
       .post('/copilot/ask')
+      .set(...auth)
       .send(body)
       .expect(400);
   });
@@ -47,6 +51,7 @@ describe('Sécurité de l’API (e2e)', () => {
 
 describe('Limitation du débit (e2e)', () => {
   let app: NestExpressApplication;
+  let auth: [string, string];
 
   // Application neuve à chaque test : le quota ne dépend d'aucun autre test.
   beforeEach(async () => {
@@ -56,6 +61,7 @@ describe('Limitation du débit (e2e)', () => {
     app = moduleFixture.createNestApplication<NestExpressApplication>();
     applySecurity(app, { max: 3, windowMs: 60_000 });
     await app.init();
+    auth = await enteteAuth(app);
   });
 
   afterEach(async () => {
@@ -66,11 +72,13 @@ describe('Limitation du débit (e2e)', () => {
     for (let i = 0; i < 3; i++) {
       await request(app.getHttpServer())
         .post('/copilot/ask')
+        .set(...auth)
         .send({})
         .expect(400);
     }
     const res = await request(app.getHttpServer())
       .post('/copilot/ask')
+      .set(...auth)
       .send({})
       .expect(429);
     expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);

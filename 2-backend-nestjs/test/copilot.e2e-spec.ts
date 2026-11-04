@@ -6,10 +6,12 @@ import { of } from 'rxjs';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { enteteAuth } from './auth.helper';
 
 describe('POST /copilot/ask (e2e, base en mémoire)', () => {
   let app: INestApplication<App>;
   let dataSource: DataSource;
+  let auth: [string, string];
   const httpService = { post: jest.fn() };
 
   beforeAll(async () => {
@@ -22,6 +24,7 @@ describe('POST /copilot/ask (e2e, base en mémoire)', () => {
     app = moduleFixture.createNestApplication();
     await app.init();
     dataSource = app.get(DataSource);
+    auth = await enteteAuth(app);
   });
 
   afterAll(async () => {
@@ -50,6 +53,7 @@ describe('POST /copilot/ask (e2e, base en mémoire)', () => {
 
     const res = await request(app.getHttpServer())
       .post('/copilot/ask')
+      .set(...auth)
       .send({ sujet: 'Panne', description: 'Rien ne marche' })
       .expect(201);
 

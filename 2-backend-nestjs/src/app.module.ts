@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { CopilotModule } from './copilot/copilot.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { CopilotModule } from './copilot/copilot.module';
         synchronize: process.env.DB_SYNCHRONIZE === 'true',
       }),
     }),
+    AuthModule,
     CopilotModule,
   ],
   controllers: [AppController],

@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CopilotController } from './copilot.controller';
 import { CopilotService } from './copilot.service';
 
@@ -12,7 +13,12 @@ describe('CopilotController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CopilotController],
       providers: [{ provide: CopilotService, useValue: copilotService }],
-    }).compile();
+    })
+      // Test unitaire du contrôleur : l'authentification est couverte par
+      // auth.service.spec.ts et test/auth.e2e-spec.ts.
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<CopilotController>(CopilotController);
   });
