@@ -7,15 +7,28 @@ export interface RateLimitOptions {
   windowMs: number;
 }
 
+function toPositiveInt(raw: string | undefined, fallback: number): number {
+  const value = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 /** Limite lue dans l'environnement : RATE_LIMIT_MAX (défaut 20) par RATE_LIMIT_WINDOW_MS (défaut 60 000). */
 export function rateLimitFromEnv(): RateLimitOptions {
-  const toPositiveInt = (raw: string | undefined, fallback: number) => {
-    const value = Number.parseInt(raw ?? '', 10);
-    return Number.isFinite(value) && value > 0 ? value : fallback;
-  };
   return {
     max: toPositiveInt(process.env.RATE_LIMIT_MAX, 20),
     windowMs: toPositiveInt(process.env.RATE_LIMIT_WINDOW_MS, 60_000),
+  };
+}
+
+/**
+ * Limite propre à la connexion, bien plus basse : elle protège les mots de
+ * passe de la force brute, pas un quota d'API. 5 tentatives par quart d'heure
+ * et par adresse IP par défaut.
+ */
+export function loginRateLimitFromEnv(): RateLimitOptions {
+  return {
+    max: toPositiveInt(process.env.LOGIN_RATE_LIMIT_MAX, 5),
+    windowMs: toPositiveInt(process.env.LOGIN_RATE_LIMIT_WINDOW_MS, 900_000),
   };
 }
 
@@ -71,8 +84,12 @@ export function securityHeaders(
 export function applySecurity(
   app: NestExpressApplication,
   rateLimit: RateLimitOptions = rateLimitFromEnv(),
+  loginRateLimit: RateLimitOptions = loginRateLimitFromEnv(),
 ) {
   app.disable('x-powered-by');
   app.use(securityHeaders);
   app.use('/copilot', createRateLimiter(rateLimit));
+  // Compteur distinct : les tentatives de connexion ne consomment pas le quota
+  // du copilote, et inversement.
+  app.use('/auth/login', createRateLimiter(loginRateLimit));
 }

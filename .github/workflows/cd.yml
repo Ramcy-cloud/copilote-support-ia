@@ -9,6 +9,18 @@
 # sur un push vers main. Le job utilise l'environnement GitHub « production »,
 # protégé par une validation (required reviewer : Ramcy-cloud). Il attend donc un clic :
 #   onglet Actions → exécution « CD » → « Review deployments » → cocher production → « Approve and deploy ».
+#
+# PRÉREQUIS DE CONFIGURATION (hors dépôt, à faire une fois dans les réglages GitHub)
+# Un workflow déclenché par « workflow_run » s'exécute dans le contexte de la
+# BRANCHE PAR DÉFAUT du dépôt (ici « dev »), et non de la branche qui a produit
+# la CI. GitHub évalue donc les règles de branches de l'environnement
+# « production » contre « dev ». Si l'environnement n'autorise que « main », la
+# livraison échoue avant toute validation, avec :
+#   Branch "dev" is not allowed to deploy to production due to environment protection rules.
+# Il faut donc ajouter « dev » aux « Deployment branches » de l'environnement :
+#   Settings → Environments → production → Deployment branches → Add « dev »
+# Cela n'ouvre pas la livraison à la branche dev : la condition « if » ci-dessous
+# exige une CI verte issue d'un push sur main, et la validation manuelle reste requise.
 name: CD
 
 on:
