@@ -2,7 +2,9 @@
 
 Ce projet sert à **aider un technicien du support informatique** : il décrit un incident, et l'outil retrouve les anciens incidents qui lui ressemblent, avec la solution qui avait été appliquée, pour préparer une procédure de résolution.
 
-> **État du projet : preuve de concept (PoC).** La recherche des incidents similaires fonctionne, mais **la réponse affichée est pour l'instant un texte simulé, toujours le même** : aucune IA de rédaction n'est encore branchée. Les « anciens tickets » sont 4 exemples fictifs écrits dans le code.
+> **État du projet : preuve de concept (PoC).** La recherche des incidents similaires fonctionne, mais **la réponse affichée est pour l'instant un texte simulé, toujours le même** : aucune IA de rédaction n'est encore branchée, faute de clé Mistral. Les « anciens tickets » sont 4 exemples fictifs écrits dans le code, en attendant un véritable historique (voir « Indexer un historique réel »).
+>
+> L'accès est en revanche **authentifié** : l'interface demande un identifiant et un mot de passe, et `POST /copilot/ask` refuse toute requête sans jeton valide.
 
 ![Interface du Copilote](./demo-interface.png)
 
@@ -55,7 +57,7 @@ Cette méthode, qui consiste à **chercher** d'abord des informations utiles pui
 - Un **historique** des demandes enregistré dans une base de données locale (fichier `database.sqlite`, créé au premier lancement, non versionné).
 - Côté moteur, la réponse technique contient aussi le **prompt complet** construit avec les anciens tickets retrouvés (champ `prompt_utilise`) : c'est là qu'on peut vérifier que la recherche a trouvé les bons tickets.
 
-Pour obtenir de vraies réponses, il faudrait : remplacer les 4 tickets d'exemple par un véritable historique, et renseigner une clé Mistral (voir « Pour les développeurs »).
+Pour obtenir de vraies réponses, il reste deux choses à fournir : un **véritable historique de tickets** (voir « Indexer un historique réel ») et une **clé Mistral** (voir « Pour les développeurs »).
 
 ---
 
@@ -142,11 +144,33 @@ pip install -r requirements-data.txt   # en plus, pour construire la base vector
 
 > Deux fichiers de dépendances : `requirements.txt` suffit pour lancer le service et les tests ; `requirements-data.txt` (qui inclut le premier) ajoute `pandas`, utilisé uniquement par les scripts d'indexation `data_prep.py` / `build_vector_db.py`. Le service n'importe pas `pandas` : il reste plus léger à déployer.
 
-Générer la base vectorielle (obligatoire avant le premier lancement, puis à chaque modification des tickets de `data_prep.py`) :
+Générer la base vectorielle (obligatoire avant le premier lancement, puis à chaque modification des tickets) :
 
 ```bash
 python build_vector_db.py
 ```
+
+##### Indexer un historique réel
+
+Par défaut, l'indexation utilise les 4 tickets d'exemple de `data_prep.py` et **l'annonce dans la console** (`ATTENTION : aucun historique reel`). Pour indexer de vraies données, déposez un fichier `tickets.csv` dans `ai-service-python/` (ou pointez `TICKETS_CSV` vers le vôtre), puis relancez `python build_vector_db.py`.
+
+Colonnes requises :
+
+| Colonne | Rôle |
+|---|---|
+| `Ticket_ID` | Identifiant unique. Sert de clé de mise à jour (`upsert`) : un doublon est écarté. |
+| `Sujet` | Titre court de l'incident. Vectorisé. |
+| `Description` | Description détaillée. Vectorisée avec le sujet. |
+| `Resolution` | Ce qui a résolu l'incident. C'est ce que le LLM reçoit comme exemple. |
+
+```csv
+Ticket_ID,Sujet,Description,Resolution
+INC100,Export FI bloque,Le batch de nuit echoue,Relance du job RSBTCDEL
+```
+
+Les lignes sans identifiant, sans résolution, ou sans sujet **ni** description sont écartées (le décompte est affiché). Si le fichier existe mais que ses colonnes ne correspondent pas, le script **échoue** au lieu de se replier en silence sur les exemples : un index de données fictives présenté comme réel serait pire qu'une erreur.
+
+Le fichier contient des données internes : il est **ignoré par git**.
 
 La base `chroma_db/` est **générée localement et n'est pas versionnée** (ignorée par git). Elle est créée par défaut dans `ai-service-python/chroma_db/`, quel que soit le dossier courant, ou dans le dossier indiqué par `CHROMA_DB_PATH`. Le script peut être relancé sans risque : les tickets existants sont mis à jour (`upsert`). Sans base, le service démarre quand même mais `POST /ask-copilot` répond `503` « Base de connaissances non initialisée ».
 
@@ -165,6 +189,38 @@ $env:DB_SYNCHRONIZE="true"; npm run start:dev # PowerShell
 ```
 
 Pour repartir de zéro : arrêter l'orchestrateur, supprimer `database.sqlite`, puis relancer de la même façon.
+
+##### Clé de signature des jetons (obligatoire)
+
+L'orchestrateur **refuse de démarrer** sans `JWT_SECRET` d'au moins 32 caractères : un secret faible ou codé en dur rendrait tous les jetons forgeables. Générez-en un :
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+Puis définissez-le dans l'environnement du shell (NestJS ne charge pas `.env` automatiquement) :
+
+```bash
+export JWT_SECRET="la-valeur-generee"            # macOS / Linux / Git Bash
+$env:JWT_SECRET="la-valeur-generee"              # PowerShell
+```
+
+##### Créer un compte technicien
+
+Aucun compte n'existe au départ : l'interface serait inutilisable. La table `utilisateurs` est créée par une migration au premier démarrage, puis :
+
+```bash
+NOUVEAU_MOT_DE_PASSE="un-mot-de-passe-de-12-caracteres-minimum" npm run utilisateur:creer -- technicien
+```
+
+En PowerShell :
+
+```powershell
+$env:NOUVEAU_MOT_DE_PASSE="un-mot-de-passe-de-12-caracteres-minimum"
+npm run utilisateur:creer -- technicien
+```
+
+Le mot de passe passe par la variable `NOUVEAU_MOT_DE_PASSE` (ou l'entrée standard), **jamais en argument** : un argument serait visible dans l'historique du shell et dans la liste des processus. Il est stocké sous forme d'empreinte `bcrypt` (coût 12), jamais en clair. Pour changer le mot de passe d'un compte existant, ajoutez `--remplacer`.
 
 #### Interface (React)
 
@@ -211,6 +267,10 @@ Interface sur http://localhost:5173 : ouvrez cette adresse dans votre navigateur
 | `AI_SERVICE_URL` | NestJS | `http://localhost:8000/ask-copilot` | URL complète du service Python (appel serveur à serveur, sans CORS). |
 | `PORT` | NestJS | `3000` | Port de l'orchestrateur. |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | NestJS | `20` / `60000` | Requêtes max. par adresse IP et par fenêtre (ms) sur `/copilot`, au-delà : `429`. |
+| `JWT_SECRET` | NestJS | **aucun (obligatoire)** | Clé de signature des jetons, 32 caractères minimum. L'application refuse de démarrer sans elle. |
+| `JWT_EXPIRES_IN` | NestJS | `1h` | Durée de validité d'un jeton (`15m`, `1h`, `7d`...). |
+| `LOGIN_RATE_LIMIT_MAX` / `LOGIN_RATE_LIMIT_WINDOW_MS` | NestJS | `5` / `900000` | Tentatives de connexion max. par adresse IP et par fenêtre (ms) sur `/auth/login`. Compteur distinct du précédent. |
+| `TICKETS_CSV` | Python | `tickets.csv` à côté du code | Historique réel à indexer. Absent : repli sur les 4 tickets d'exemple. |
 | `AI_SERVICE_HOST` / `AI_SERVICE_PORT` | Python | `127.0.0.1` / `8000` | Adresse et port du service IA, interne (écoute en local seulement par défaut). |
 | `DB_PATH` | NestJS | `database.sqlite` | Chemin de la base SQLite (les tests utilisent `:memory:`). |
 | `ALLOW_SIMULATION` | Python | `true` | `false` = sans clé Mistral, le service répond `503` au lieu de renvoyer le texte simulé (conseillé en production). |
@@ -248,6 +308,8 @@ ChromaDB est simulé dans les tests : aucune base vectorielle ni modèle d'embed
 
 Orchestrateur (depuis `2-backend-nestjs`) : `npm run lint`, `npm test`, `npm run test:e2e`, `npm run build`.
 
+L'authentification est couverte des deux côtés : en unitaire (empreinte bcrypt vérifiable, message indistinct entre compte inconnu et mot de passe faux, refus de démarrer sans `JWT_SECRET`) et en e2e (connexion réelle, `401` sur jeton absent, malformé, mal signé ou expiré, `429` sur tentatives répétées). Les tests qui ne portent pas sur la connexion signent leur jeton directement, pour ne pas payer le coût bcrypt à chaque requête.
+
 ### CI/CD
 
 Les workflows s'appuient sur les modèles partagés de [`Ramcy-cloud/ci-templates`](https://github.com/Ramcy-cloud/ci-templates) (version `v1`).
@@ -259,13 +321,18 @@ Les workflows s'appuient sur les modèles partagés de [`Ramcy-cloud/ci-template
 
   Chaque partie produit un artefact de build (`build-frontend`, `build-orchestrateur`, `build-moteur-ia`).
 - **CD** (`.github/workflows/cd.yml`) — le projet n'a pas de Dockerfile : quand la CI est verte sur `main`, une livraison démarre puis **attend une validation manuelle** (environnement GitHub `production`). Pour livrer : onglet *Actions* → exécution *CD* → **Review deployments** → cocher `production` → **Approve and deploy**. Les artefacts sont alors republiés en un paquet `livraison-<sha>` conservé 90 jours (téléchargeable depuis la page de l'exécution).
-- Aucun secret n'est nécessaire en CI. `MISTRAL_API_KEY` ne sert qu'à l'exécution réelle du moteur IA.
+- Aucun secret n'est nécessaire en CI. `MISTRAL_API_KEY` et `JWT_SECRET` ne servent qu'à l'exécution réelle des services.
+
+> **Réglage requis une fois, côté GitHub.** Un workflow déclenché par `workflow_run` s'exécute dans le contexte de la **branche par défaut** du dépôt (`dev`), et non de la branche qui a produit la CI. GitHub évalue donc les règles de branches de l'environnement `production` contre `dev`, et la livraison échoue avec `Branch "dev" is not allowed to deploy to production` si seul `main` est autorisé. Correctif : *Settings → Environments → production → Deployment branches* → ajouter `dev`. Cela n'ouvre pas la livraison depuis `dev` : la condition `if` du job exige une CI verte issue d'un push sur `main`, et la validation manuelle reste requise.
 
 ### Sécurité
 
 - CORS limité à `ALLOWED_ORIGINS`, en-têtes de sécurité (`nosniff`, `X-Frame-Options`, CSP stricte), `x-powered-by` masqué.
 - Entrées validées : `sujet` (200 caractères max.) et `description` (5000 max.) obligatoires, côté NestJS (`400`) et côté Python (`422`).
-- Limitation du débit sur `/copilot` pour protéger le quota du LLM. Il n'y a **pas d'authentification** : ne pas exposer l'API sur Internet sans la placer derrière un système d'authentification.
+- **Authentification obligatoire** sur `/copilot/ask` : jeton JWT signé (`Authorization: Bearer ...`), obtenu via `POST /auth/login`. Sans jeton, ou avec un jeton expiré ou mal signé, l'API répond `401` — avant même de regarder le corps de la requête.
+- Mots de passe stockés en empreinte **bcrypt** (coût 12), jamais en clair, jamais renvoyés par l'API. Un identifiant inconnu et un mot de passe faux donnent le **même message** (`Identifiants invalides`) et prennent le **même temps** de réponse : ni la réponse ni le chronomètre ne permettent d'énumérer les comptes existants.
+- Deux limitations de débit indépendantes : `/copilot` protège le quota du LLM (20/min par défaut), `/auth/login` protège les mots de passe de la force brute (5 par quart d'heure).
+- `JWT_SECRET` est obligatoire et vérifié au démarrage (32 caractères minimum) : aucun secret par défaut n'est codé dans le dépôt.
 - L'API ne renvoie pas le prompt interne (`prompt_utilise`, historique RAG) au navigateur ; le service Python n'est joignable qu'en local.
 - Les clés (`MISTRAL_API_KEY`) restent dans `.env`, ignoré par git.
 
@@ -276,9 +343,13 @@ copilote-support-ia/
 ├── 1-frontend-react/        # Interface React + Vite (src/App.jsx)
 ├── 2-backend-nestjs/        # Orchestrateur NestJS
 │   ├── src/copilot/         # controller, service, module, ticket.entity
-│   └── database.sqlite      # Historique des demandes (SQLite, généré, non versionné)
+│   ├── src/auth/            # login JWT, garde, entité utilisateur, création de compte
+│   ├── src/migrations/      # tables tickets_historique et utilisateurs
+│   ├── src/security.ts      # en-têtes de sécurité + limitation du débit
+│   └── database.sqlite      # Historique + comptes (SQLite, généré, non versionné)
 ├── ai-service-python/
-│   ├── data_prep.py         # Tickets d'exemple + nettoyage
+│   ├── data_prep.py         # Chargement des tickets (CSV réel ou exemples) + nettoyage
+│   ├── tickets.csv          # Historique réel, optionnel (non versionné)
 │   ├── build_vector_db.py   # Création de la base vectorielle
 │   ├── rag_pipeline.py      # Recherche + construction du prompt
 │   ├── main.py              # API FastAPI
