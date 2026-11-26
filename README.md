@@ -365,3 +365,9 @@ copilote-support-ia/
 ---
 
 *Projet réalisé dans le cadre d'une preuve de concept d'industrialisation de l'IA pour les opérations SAP.*
+
+## Licence
+
+© 2026 Ramcy-cloud. Tous droits réservés.
+
+Ce code est consultable publiquement mais n'est pas sous licence libre : aucun droit d'utilisation, de modification ou de redistribution n'est accordé.
